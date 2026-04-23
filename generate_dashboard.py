@@ -473,9 +473,11 @@ def build_html(metrics: list[dict], current_month: str, demo: bool, trends: list
         prior_display = f"{m['prior']:,}" if m["prior"] is not None else "—"
         hero_cards_html += f"""
         <div class="hero-card">
+          <div class="hero-card-eyebrow">Month over month</div>
           <div class="hero-state">{m['state']}</div>
           <div class="hero-mom red-3">{pct_display(m['mom_pct'])}</div>
-          <div class="hero-sub">MoM</div>
+          <div class="hero-sub">change</div>
+          <div class="hero-divider"></div>
           <div class="hero-counts">{m['current']:,} vs {prior_display}</div>
           <div class="hero-yoy pct-cell {pct_color_class(m['yoy_pct'])}">YoY: {pct_display(m['yoy_pct'])}</div>
         </div>"""
@@ -491,122 +493,219 @@ def build_html(metrics: list[dict], current_month: str, demo: bool, trends: list
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Quit For Life — Enrollment Dip Dashboard</title>
+  <title>Quit For Life® — Enrollment Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <style>
     *, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
 
+    :root {{
+      --qfl-teal:         #118575;
+      --qfl-teal-deep:    #0B584D;
+      --qfl-teal-light:   #67C3B7;
+      --qfl-teal-whisper: rgba(103,195,183,0.15);
+      --qfl-navy:         #24425A;
+      --qfl-slate:        #556C7F;
+      --qfl-ink:          #232020;
+      --qfl-gray-500:     #A0A1A1;
+      --qfl-gray-300:     #CDCFCF;
+      --qfl-gray-100:     #F0F1F1;
+      --qfl-white:        #FFFFFF;
+      --font-sans: 'Poppins', 'Helvetica Neue', Arial, system-ui, sans-serif;
+      --shadow-sm: 0 2px 6px rgba(36,66,90,0.08);
+      --shadow-md: 0 8px 20px rgba(36,66,90,0.10);
+      --shadow-focus: 0 0 0 3px rgba(17,133,117,0.35);
+      --radius-card: 16px;
+      --radius-sm: 8px;
+    }}
+
     body {{
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: #f4f5f7;
-      color: #1a1a2e;
+      font-family: var(--font-sans);
+      background: var(--qfl-gray-100);
+      color: var(--qfl-ink);
       min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+      font-size: 15px;
+      line-height: 1.45;
     }}
 
     .demo-banner {{
-      background: #fff3cd;
-      border-bottom: 2px solid #ffc107;
+      background: #fef9e7;
+      border-bottom: 2px solid #f0c040;
       padding: 10px 24px;
       font-size: 13px;
+      font-family: var(--font-sans);
       text-align: center;
+      color: var(--qfl-navy);
     }}
     .demo-banner code {{
-      background: #e9ecef;
-      padding: 1px 5px;
-      border-radius: 3px;
+      background: rgba(36,66,90,0.08);
+      padding: 1px 6px;
+      border-radius: 4px;
       font-size: 12px;
     }}
 
     .header {{
-      background: #1a1a2e;
-      color: #fff;
-      padding: 20px 32px;
+      background: var(--qfl-navy);
+      color: var(--qfl-white);
+      padding: 18px 32px;
       display: flex;
-      align-items: baseline;
+      align-items: center;
       gap: 16px;
     }}
-    .header h1 {{ font-size: 22px; font-weight: 700; letter-spacing: -0.3px; }}
+    .header-logo {{
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }}
+    .header-logo-mark {{
+      width: 36px;
+      height: 36px;
+      background: var(--qfl-teal);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 15px;
+      color: #fff;
+      letter-spacing: -0.5px;
+      flex-shrink: 0;
+    }}
+    .header h1 {{
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      color: var(--qfl-white);
+      margin: 0;
+      line-height: 1.15;
+    }}
+    .header h1 span {{
+      font-weight: 300;
+      opacity: 0.7;
+    }}
     .header .as-of {{
       font-size: 13px;
-      color: #9fa8da;
+      color: var(--qfl-teal-light);
       margin-left: auto;
+      font-weight: 500;
     }}
 
-    .container {{ max-width: 1280px; margin: 0 auto; padding: 28px 24px; }}
+    .container {{ max-width: 1280px; margin: 0 auto; padding: 32px 24px; }}
 
-    .section-label {{
+    .qfl-eyebrow {{
       font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 1.2px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
       text-transform: uppercase;
-      color: #6b7280;
-      margin-bottom: 12px;
+      color: var(--qfl-teal);
+      margin-bottom: 14px;
     }}
 
     .hero-grid {{
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-      gap: 14px;
-      margin-bottom: 36px;
+      grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+      gap: 16px;
+      margin-bottom: 40px;
     }}
     .hero-card {{
-      background: #fff;
-      border: 1px solid #e5e7eb;
-      border-left: 5px solid #ef4444;
-      border-radius: 8px;
-      padding: 18px 20px;
-      box-shadow: 0 1px 3px rgba(0,0,0,.06);
+      background: var(--qfl-white);
+      border: 1px solid var(--qfl-gray-300);
+      border-radius: var(--radius-card);
+      padding: 20px 22px;
+      box-shadow: var(--shadow-sm);
+      transition: box-shadow 220ms cubic-bezier(0.2,0,0,1), transform 220ms cubic-bezier(0.2,0,0,1);
+    }}
+    .hero-card:hover {{ box-shadow: var(--shadow-md); transform: translateY(-1px); }}
+    .hero-card-eyebrow {{
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--qfl-slate);
+      margin-bottom: 8px;
     }}
     .hero-state {{
       font-size: 15px;
       font-weight: 600;
-      color: #111827;
-      margin-bottom: 6px;
+      color: var(--qfl-navy);
+      margin-bottom: 8px;
+      line-height: 1.15;
     }}
     .hero-mom {{
-      font-size: 32px;
-      font-weight: 800;
+      font-size: 34px;
+      font-weight: 700;
       line-height: 1;
       margin-bottom: 2px;
+      letter-spacing: -0.02em;
     }}
     .hero-sub {{
-      font-size: 11px;
-      color: #9ca3af;
+      font-size: 10px;
+      color: var(--qfl-gray-500);
       text-transform: uppercase;
-      letter-spacing: 0.8px;
+      letter-spacing: 0.1em;
+      margin-bottom: 12px;
+      font-weight: 500;
+    }}
+    .hero-divider {{
+      height: 1px;
+      background: var(--qfl-gray-300);
       margin-bottom: 10px;
     }}
     .hero-counts {{
       font-size: 12px;
-      color: #6b7280;
+      color: var(--qfl-slate);
       margin-bottom: 4px;
     }}
     .hero-yoy {{ font-size: 12px; font-weight: 600; }}
 
     .table-wrap {{
-      background: #fff;
-      border: 1px solid #e5e7eb;
-      border-radius: 8px;
+      background: var(--qfl-white);
+      border: 1px solid var(--qfl-gray-300);
+      border-radius: var(--radius-card);
       overflow-x: auto;
-      box-shadow: 0 1px 3px rgba(0,0,0,.06);
+      box-shadow: var(--shadow-sm);
     }}
     .table-toolbar {{
       display: flex;
       align-items: center;
       gap: 12px;
-      padding: 14px 18px;
-      border-bottom: 1px solid #f3f4f6;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--qfl-gray-100);
+    }}
+    .search-wrap {{
+      position: relative;
+      display: flex;
+      align-items: center;
+    }}
+    .search-icon {{
+      position: absolute;
+      left: 10px;
+      color: var(--qfl-gray-500);
+      font-size: 14px;
+      pointer-events: none;
     }}
     .table-toolbar input {{
-      border: 1px solid #d1d5db;
-      border-radius: 6px;
-      padding: 6px 12px;
+      border: 1.5px solid var(--qfl-gray-300);
+      border-radius: 9999px;
+      padding: 7px 14px 7px 32px;
       font-size: 13px;
-      width: 220px;
+      font-family: var(--font-sans);
+      width: 240px;
       outline: none;
+      color: var(--qfl-ink);
+      background: var(--qfl-gray-100);
+      transition: border-color 140ms, box-shadow 140ms;
     }}
-    .table-toolbar input:focus {{ border-color: #6366f1; box-shadow: 0 0 0 2px rgba(99,102,241,.15); }}
-    .record-count {{ font-size: 12px; color: #9ca3af; margin-left: auto; }}
+    .table-toolbar input:focus {{
+      border-color: var(--qfl-teal);
+      background: var(--qfl-white);
+      box-shadow: var(--shadow-focus);
+    }}
+    .table-toolbar input::placeholder {{ color: var(--qfl-gray-500); }}
+    .record-count {{ font-size: 12px; color: var(--qfl-gray-500); margin-left: auto; font-weight: 500; }}
 
     table {{
       width: 100%;
@@ -615,56 +714,71 @@ def build_html(metrics: list[dict], current_month: str, demo: bool, trends: list
       font-size: 13px;
     }}
     thead th {{
-      background: #f9fafb;
-      padding: 10px 16px;
+      background: var(--qfl-gray-100);
+      padding: 11px 16px;
       text-align: left;
-      font-size: 11px;
-      font-weight: 700;
+      font-size: 10px;
+      font-weight: 600;
       text-transform: uppercase;
-      letter-spacing: 0.6px;
-      color: #6b7280;
-      border-bottom: 1px solid #e5e7eb;
+      letter-spacing: 0.1em;
+      color: var(--qfl-slate);
+      border-bottom: 1px solid var(--qfl-gray-300);
       cursor: pointer;
       user-select: none;
       white-space: nowrap;
+      font-family: var(--font-sans);
     }}
-    thead th:hover {{ color: #374151; background: #f3f4f6; }}
+    thead th:hover {{ color: var(--qfl-navy); background: #e8eaeb; }}
     thead th .sort-arrow {{ display: inline-block; margin-left: 4px; opacity: 0.4; }}
-    thead th.sort-asc .sort-arrow::after {{ content: "▲"; opacity: 1; }}
-    thead th.sort-desc .sort-arrow::after {{ content: "▼"; opacity: 1; }}
+    thead th.sort-asc .sort-arrow::after {{ content: "▲"; opacity: 1; color: var(--qfl-teal); }}
+    thead th.sort-desc .sort-arrow::after {{ content: "▼"; opacity: 1; color: var(--qfl-teal); }}
     thead th:not(.sort-asc):not(.sort-desc) .sort-arrow::after {{ content: "⇅"; }}
 
-    tbody tr {{ border-bottom: 1px solid #f3f4f6; }}
+    tbody tr {{ border-bottom: 1px solid var(--qfl-gray-100); }}
     tbody tr:last-child {{ border-bottom: none; }}
-    tbody tr:hover {{ background: #fafafa; }}
+    tbody tr:hover {{ background: rgba(103,195,183,0.06); }}
 
-    td {{ padding: 9px 16px; vertical-align: middle; }}
-    .state-cell {{ font-weight: 500; color: #111827; }}
-    .num-cell {{ text-align: right; font-variant-numeric: tabular-nums; color: #374151; }}
+    td {{ padding: 10px 16px; vertical-align: middle; }}
+    .state-cell {{ font-weight: 500; color: var(--qfl-navy); }}
+    .num-cell {{ text-align: right; font-variant-numeric: tabular-nums; color: var(--qfl-ink); }}
     .spark-cell {{ text-align: center; padding: 6px 12px; }}
 
     .red-3 {{ color: #b91c1c !important; font-weight: 700; }}
     .red-2 {{ color: #dc2626 !important; font-weight: 600; }}
-    .red-1 {{ color: #f97316 !important; font-weight: 500; }}
-    .neutral {{ color: #6b7280; }}
-    .green-1 {{ color: #16a34a !important; font-weight: 500; }}
-    .green-2 {{ color: #15803d !important; font-weight: 700; }}
+    .red-1 {{ color: #e07000 !important; font-weight: 500; }}
+    .neutral {{ color: var(--qfl-gray-500); }}
+    .green-1 {{ color: #1a7a50 !important; font-weight: 500; }}
+    .green-2 {{ color: var(--qfl-teal-deep) !important; font-weight: 700; }}
 
     /* ---- Overall trend ---- */
     .trend-section {{
-      background: #fff;
-      border: 1px solid #e5e7eb;
-      border-radius: 8px;
-      padding: 20px 24px;
-      margin-bottom: 28px;
+      background: var(--qfl-white);
+      border: 1px solid var(--qfl-gray-300);
+      border-radius: var(--radius-card);
+      padding: 22px 28px;
+      margin-bottom: 32px;
       display: flex;
       align-items: center;
-      gap: 32px;
-      box-shadow: 0 1px 3px rgba(0,0,0,.06);
+      gap: 36px;
+      box-shadow: var(--shadow-sm);
     }}
-    .trend-stat {{ flex: 0 0 auto; min-width: 160px; }}
-    .trend-stat-label {{ font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #6b7280; margin-bottom: 6px; }}
-    .trend-stat-num {{ font-size: 36px; font-weight: 800; color: #111827; line-height: 1; margin-bottom: 4px; }}
+    .trend-stat {{ flex: 0 0 auto; min-width: 170px; }}
+    .trend-stat-label {{
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--qfl-slate);
+      margin-bottom: 6px;
+    }}
+    .trend-stat-num {{
+      font-size: 40px;
+      font-weight: 700;
+      color: var(--qfl-navy);
+      line-height: 1;
+      margin-bottom: 5px;
+      letter-spacing: -0.02em;
+    }}
     .trend-stat-mom {{ font-size: 13px; font-weight: 600; }}
     .trend-chart-wrap {{ flex: 1; min-width: 0; height: 110px; position: relative; }}
     .trend-chart-wrap canvas {{ position: absolute; top: 0; left: 0; width: 100% !important; height: 100% !important; }}
@@ -672,9 +786,11 @@ def build_html(metrics: list[dict], current_month: str, demo: bool, trends: list
     footer {{
       text-align: center;
       font-size: 11px;
-      color: #9ca3af;
-      padding: 24px;
+      color: var(--qfl-gray-500);
+      padding: 28px 24px;
+      font-family: var(--font-sans);
     }}
+    footer strong {{ color: var(--qfl-slate); font-weight: 600; }}
   </style>
 </head>
 <body>
@@ -682,22 +798,28 @@ def build_html(metrics: list[dict], current_month: str, demo: bool, trends: list
 {demo_banner}
 
 <header class="header">
-  <h1>Quit For Life — Enrollment Dashboard</h1>
+  <div class="header-logo">
+    <div class="header-logo-mark">QFL</div>
+    <h1>Quit For Life® <span>Enrollment Dashboard</span></h1>
+  </div>
   <span class="as-of">Data as of {cur_label}</span>
 </header>
 
 <div class="container">
 
 {trend_section}
-  <div class="section-label">States needing attention — biggest month-over-month dips</div>
+  <div class="qfl-eyebrow">States needing attention — biggest month-over-month dips</div>
   <div class="hero-grid">
     {hero_cards_html}
   </div>
 
-  <div class="section-label">All states</div>
+  <div class="qfl-eyebrow">All states</div>
   <div class="table-wrap">
     <div class="table-toolbar">
-      <input type="text" id="search" placeholder="Filter states…" />
+      <div class="search-wrap">
+        <span class="search-icon">⌕</span>
+        <input type="text" id="search" placeholder="Filter states…" />
+      </div>
       <span class="record-count" id="record-count"></span>
     </div>
     <table id="main-table">
@@ -719,7 +841,7 @@ def build_html(metrics: list[dict], current_month: str, demo: bool, trends: list
 
 </div>
 
-<footer>Generated {datetime.now().strftime("%Y-%m-%d %H:%M")} · Quit For Life enrollment tracker</footer>
+<footer>Generated {datetime.now().strftime("%Y-%m-%d %H:%M")} &nbsp;·&nbsp; <strong>Quit For Life®</strong> enrollment tracker &nbsp;·&nbsp; RVO Health, Inc.</footer>
 
 <script>
 const chartData = {chart_data};
@@ -734,7 +856,7 @@ function drawSparklines(rows) {{
     if (!vals.length) return;
     const min = Math.min(...vals);
     const max = Math.max(...vals);
-    const color = (d.mom_pct !== null && d.mom_pct < -2) ? '#ef4444' : '#22c55e';
+    const color = (d.mom_pct !== null && d.mom_pct < -2) ? '#dc2626' : '#118575';
     new Chart(canvas, {{
       type: 'line',
       data: {{
@@ -822,11 +944,11 @@ if (trendEl) {{
       labels,
       datasets: [{{
         data: values,
-        borderColor: '#6366f1',
-        backgroundColor: 'rgba(99,102,241,0.08)',
+        borderColor: '#118575',
+        backgroundColor: 'rgba(103,195,183,0.12)',
         borderWidth: 2.5,
         pointRadius: 3,
-        pointBackgroundColor: '#6366f1',
+        pointBackgroundColor: '#118575',
         tension: 0.3,
         fill: true,
       }}]
@@ -837,8 +959,8 @@ if (trendEl) {{
         label: ctx => ' ' + ctx.parsed.y.toLocaleString() + ' enrollments'
       }} }} }},
       scales: {{
-        x: {{ grid: {{ display: false }}, ticks: {{ font: {{ size: 11 }} }} }},
-        y: {{ grid: {{ color: '#f3f4f6' }}, ticks: {{ font: {{ size: 11 }}, callback: v => v.toLocaleString() }} }}
+        x: {{ grid: {{ display: false }}, ticks: {{ font: {{ size: 11, family: "'Poppins', sans-serif" }} }} }},
+        y: {{ grid: {{ color: '#F0F1F1' }}, ticks: {{ font: {{ size: 11, family: "'Poppins', sans-serif" }}, callback: v => v.toLocaleString() }} }}
       }},
       responsive: true,
       maintainAspectRatio: false,
