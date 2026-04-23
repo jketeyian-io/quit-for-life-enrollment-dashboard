@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quit For Life — Enrollment Dip Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f4f5f7;
+      color: #1a1a2e;
+      min-height: 100vh;
+    }
+
+    .demo-banner {
+      background: #fff3cd;
+      border-bottom: 2px solid #ffc107;
+      padding: 10px 24px;
+      font-size: 13px;
+      text-align: center;
+    }
+    .demo-banner code {
+      background: #e9ecef;
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: 12px;
+    }
+
+    .header {
+      background: #1a1a2e;
+      color: #fff;
+      padding: 20px 32px;
+      display: flex;
+      align-items: baseline;
+      gap: 16px;
+    }
+    .header h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.3px; }
+    .header .as-of {
+      font-size: 13px;
+      color: #9fa8da;
+      margin-left: auto;
+    }
+
+    .container { max-width: 1280px; margin: 0 auto; padding: 28px 24px; }
+
+    .section-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      color: #6b7280;
+      margin-bottom: 12px;
+    }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 14px;
+      margin-bottom: 36px;
+    }
+    .hero-card {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-left: 5px solid #ef4444;
+      border-radius: 8px;
+      padding: 18px 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,.06);
+    }
+    .hero-state {
+      font-size: 15px;
+      font-weight: 600;
+      color: #111827;
+      margin-bottom: 6px;
+    }
+    .hero-mom {
+      font-size: 32px;
+      font-weight: 800;
+      line-height: 1;
+      margin-bottom: 2px;
+    }
+    .hero-sub {
+      font-size: 11px;
+      color: #9ca3af;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 10px;
+    }
+    .hero-counts {
+      font-size: 12px;
+      color: #6b7280;
+      margin-bottom: 4px;
+    }
+    .hero-yoy { font-size: 12px; font-weight: 600; }
+
+    .table-wrap {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      overflow-x: auto;
+      box-shadow: 0 1px 3px rgba(0,0,0,.06);
+    }
+    .table-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 18px;
+      border-bottom: 1px solid #f3f4f6;
+    }
+    .table-toolbar input {
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 13px;
+      width: 220px;
+      outline: none;
+    }
+    .table-toolbar input:focus { border-color: #6366f1; box-shadow: 0 0 0 2px rgba(99,102,241,.15); }
+    .record-count { font-size: 12px; color: #9ca3af; margin-left: auto; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 780px;
+      font-size: 13px;
+    }
+    thead th {
+      background: #f9fafb;
+      padding: 10px 16px;
+      text-align: left;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: #6b7280;
+      border-bottom: 1px solid #e5e7eb;
+      cursor: pointer;
+      user-select: none;
+      white-space: nowrap;
+    }
+    thead th:hover { color: #374151; background: #f3f4f6; }
+    thead th .sort-arrow { display: inline-block; margin-left: 4px; opacity: 0.4; }
+    thead th.sort-asc .sort-arrow::after { content: "▲"; opacity: 1; }
+    thead th.sort-desc .sort-arrow::after { content: "▼"; opacity: 1; }
+    thead th:not(.sort-asc):not(.sort-desc) .sort-arrow::after { content: "⇅"; }
+
+    tbody tr { border-bottom: 1px solid #f3f4f6; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: #fafafa; }
+
+    td { padding: 9px 16px; vertical-align: middle; }
+    .state-cell { font-weight: 500; color: #111827; }
+    .num-cell { text-align: right; font-variant-numeric: tabular-nums; color: #374151; }
+    .spark-cell { text-align: center; padding: 6px 12px; }
+
+    .red-3 { color: #b91c1c !important; font-weight: 700; }
+    .red-2 { color: #dc2626 !important; font-weight: 600; }
+    .red-1 { color: #f97316 !important; font-weight: 500; }
+    .neutral { color: #6b7280; }
+    .green-1 { color: #16a34a !important; font-weight: 500; }
+    .green-2 { color: #15803d !important; font-weight: 700; }
+
+    /* ---- Overall trend ---- */
+    .trend-section {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 20px 24px;
+      margin-bottom: 28px;
+      display: flex;
+      align-items: center;
+      gap: 32px;
+      box-shadow: 0 1px 3px rgba(0,0,0,.06);
+    }
+    .trend-stat { flex: 0 0 auto; min-width: 160px; }
+    .trend-stat-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #6b7280; margin-bottom: 6px; }
+    .trend-stat-num { font-size: 36px; font-weight: 800; color: #111827; line-height: 1; margin-bottom: 4px; }
+    .trend-stat-mom { font-size: 13px; font-weight: 600; }
+    .trend-chart-wrap { flex: 1; min-width: 0; height: 110px; position: relative; }
+    .trend-chart-wrap canvas { position: absolute; top: 0; left: 0; width: 100% !important; height: 100% !important; }
+
+    footer {
+      text-align: center;
+      font-size: 11px;
+      color: #9ca3af;
+      padding: 24px;
+    }
+  </style>
+</head>
+<body>
+
+
+
+<header class="header">
+  <h1>Quit For Life — Enrollment Dashboard</h1>
+  <span class="as-of">Data as of Apr 2026</span>
+</header>
+
+<div class="container">
+
+
+  <div class="trend-section">
+    <div class="trend-stat">
+      <div class="trend-stat-label">Total Enrollments — Mar 2026</div>
+      <div class="trend-stat-num">11,969</div>
+      <div class="trend-stat-mom green-2">+20.2% vs prior month</div>
+    </div>
+    <div class="trend-chart-wrap">
+      <canvas id="overall-trend"></canvas>
+    </div>
+  </div>
+  <script id="trend-data"
+    data-labels='["Apr 2025", "May 2025", "Jun 2025", "Jul 2025", "Aug 2025", "Sep 2025", "Oct 2025", "Nov 2025", "Dec 2025", "Jan 2026", "Feb 2026", "Mar 2026"]'
+    data-values='[15199, 15152, 14565, 13494, 14210, 12161, 11412, 8596, 9233, 10585, 9954, 11969]'></script>
+  <div class="section-label">States needing attention — biggest month-over-month dips</div>
+  <div class="hero-grid">
+    
+        <div class="hero-card">
+          <div class="hero-state">Virginia</div>
+          <div class="hero-mom red-3">-51.0%</div>
+          <div class="hero-sub">MoM</div>
+          <div class="hero-counts">250 vs 510</div>
+          <div class="hero-yoy pct-cell red-3">YoY: -41.2%</div>
+        </div>
+        <div class="hero-card">
+          <div class="hero-state">Ohio</div>
+          <div class="hero-mom red-3">-51.0%</div>
+          <div class="hero-sub">MoM</div>
+          <div class="hero-counts">449 vs 916</div>
+          <div class="hero-yoy pct-cell red-3">YoY: -50.2%</div>
+        </div>
+        <div class="hero-card">
+          <div class="hero-state">West Virginia</div>
+          <div class="hero-mom red-3">-50.0%</div>
+          <div class="hero-sub">MoM</div>
+          <div class="hero-counts">187 vs 374</div>
+          <div class="hero-yoy pct-cell red-2">YoY: -13.4%</div>
+        </div>
+        <div class="hero-card">
+          <div class="hero-state">Maine</div>
+          <div class="hero-mom red-3">-46.4%</div>
+          <div class="hero-sub">MoM</div>
+          <div class="hero-counts">155 vs 289</div>
+          <div class="hero-yoy pct-cell red-1">YoY: -3.1%</div>
+        </div>
+        <div class="hero-card">
+          <div class="hero-state">South Carolina</div>
+          <div class="hero-mom red-3">-43.6%</div>
+          <div class="hero-sub">MoM</div>
+          <div class="hero-counts">383 vs 679</div>
+          <div class="hero-yoy pct-cell red-3">YoY: -45.4%</div>
+        </div>
+  </div>
+
+  <div class="section-label">All states</div>
+  <div class="table-wrap">
+    <div class="table-toolbar">
+      <input type="text" id="search" placeholder="Filter states…" />
+      <span class="record-count" id="record-count"></span>
+    </div>
+    <table id="main-table">
+      <thead>
+        <tr>
+          <th data-col="state">State <span class="sort-arrow"></span></th>
+          <th data-col="current" class="num-cell">Apr 2026 <span class="sort-arrow"></span></th>
+          <th data-col="prior" class="num-cell">Prior Month <span class="sort-arrow"></span></th>
+          <th data-col="mom" class="num-cell">MoM Change <span class="sort-arrow"></span></th>
+          <th data-col="yoy" class="num-cell">YoY Change <span class="sort-arrow"></span></th>
+          
+        </tr>
+      </thead>
+      <tbody id="table-body">
+        
+        <tr data-mom="-51.0"
+            data-yoy="-41.2"
+            data-state="Virginia"
+            data-current="250"
+            data-prior="510">
+          <td class="state-cell">Virginia</td>
+          <td class="num-cell">250</td>
+          <td class="num-cell">510</td>
+          <td class="num-cell pct-cell red-3">-51.0%</td>
+          <td class="num-cell pct-cell red-3">-41.2%</td>
+          
+        </tr>
+        <tr data-mom="-51.0"
+            data-yoy="-50.2"
+            data-state="Ohio"
+            data-current="449"
+            data-prior="916">
+          <td class="state-cell">Ohio</td>
+          <td class="num-cell">449</td>
+          <td class="num-cell">916</td>
+          <td class="num-cell pct-cell red-3">-51.0%</td>
+          <td class="num-cell pct-cell red-3">-50.2%</td>
+          
+        </tr>
+        <tr data-mom="-50.0"
+            data-yoy="-13.4"
+            data-state="West Virginia"
+            data-current="187"
+            data-prior="374">
+          <td class="state-cell">West Virginia</td>
+          <td class="num-cell">187</td>
+          <td class="num-cell">374</td>
+          <td class="num-cell pct-cell red-3">-50.0%</td>
+          <td class="num-cell pct-cell red-2">-13.4%</td>
+          
+        </tr>
+        <tr data-mom="-46.4"
+            data-yoy="-3.1"
+            data-state="Maine"
+            data-current="155"
+            data-prior="289">
+          <td class="state-cell">Maine</td>
+          <td class="num-cell">155</td>
+          <td class="num-cell">289</td>
+          <td class="num-cell pct-cell red-3">-46.4%</td>
+          <td class="num-cell pct-cell red-1">-3.1%</td>
+          
+        </tr>
+        <tr data-mom="-43.6"
+            data-yoy="-45.4"
+            data-state="South Carolina"
+            data-current="383"
+            data-prior="679">
+          <td class="state-cell">South Carolina</td>
+          <td class="num-cell">383</td>
+          <td class="num-cell">679</td>
+          <td class="num-cell pct-cell red-3">-43.6%</td>
+          <td class="num-cell pct-cell red-3">-45.4%</td>
+          
+        </tr>
+        <tr data-mom="-42.9"
+            data-yoy="9999"
+            data-state="Alabama"
+            data-current="201"
+            data-prior="352">
+          <td class="state-cell">Alabama</td>
+          <td class="num-cell">201</td>
+          <td class="num-cell">352</td>
+          <td class="num-cell pct-cell red-3">-42.9%</td>
+          <td class="num-cell pct-cell neutral">—</td>
+          
+        </tr>
+        <tr data-mom="-41.8"
+            data-yoy="-83.5"
+            data-state="Mississippi"
+            data-current="64"
+            data-prior="110">
+          <td class="state-cell">Mississippi</td>
+          <td class="num-cell">64</td>
+          <td class="num-cell">110</td>
+          <td class="num-cell pct-cell red-3">-41.8%</td>
+          <td class="num-cell pct-cell red-3">-83.5%</td>
+          
+        </tr>
+        <tr data-mom="-41.4"
+            data-yoy="-45.4"
+            data-state="Oregon"
+            data-current="106"
+            data-prior="181">
+          <td class="state-cell">Oregon</td>
+          <td class="num-cell">106</td>
+          <td class="num-cell">181</td>
+          <td class="num-cell pct-cell red-3">-41.4%</td>
+          <td class="num-cell pct-cell red-3">-45.4%</td>
+          
+        </tr>
+        <tr data-mom="-40.5"
+            data-yoy="-45.3"
+            data-state="Louisiana"
+            data-current="203"
+            data-prior="341">
+          <td class="state-cell">Louisiana</td>
+          <td class="num-cell">203</td>
+          <td class="num-cell">341</td>
+          <td class="num-cell pct-cell red-3">-40.5%</td>
+          <td class="num-cell pct-cell red-3">-45.3%</td>
+          
+        </tr>
+        <tr data-mom="-39.6"
+            data-yoy="-43.5"
+            data-state="Wisconsin"
+            data-current="274"
+            data-prior="454">
+          <td class="state-cell">Wisconsin</td>
+          <td class="num-cell">274</td>
+          <td class="num-cell">454</td>
+          <td class="num-cell pct-cell red-3">-39.6%</td>
+          <td class="num-cell pct-cell red-3">-43.5%</td>
+          
+        </tr>
+        <tr data-mom="-38.4"
+            data-yoy="-49.2"
+            data-state="North Carolina"
+            data-current="439"
+            data-prior="713">
+          <td class="state-cell">North Carolina</td>
+          <td class="num-cell">439</td>
+          <td class="num-cell">713</td>
+          <td class="num-cell pct-cell red-3">-38.4%</td>
+          <td class="num-cell pct-cell red-3">-49.2%</td>
+          
+        </tr>
+        <tr data-mom="-38.3"
+            data-yoy="-34.6"
+            data-state="Alaska"
+            data-current="100"
+            data-prior="162">
+          <td class="state-cell">Alaska</td>
+          <td class="num-cell">100</td>
+          <td class="num-cell">162</td>
+          <td class="num-cell pct-cell red-3">-38.3%</td>
+          <td class="num-cell pct-cell red-3">-34.6%</td>
+          
+        </tr>
+        <tr data-mom="-37.3"
+            data-yoy="-61.2"
+            data-state="Maryland"
+            data-current="302"
+            data-prior="482">
+          <td class="state-cell">Maryland</td>
+          <td class="num-cell">302</td>
+          <td class="num-cell">482</td>
+          <td class="num-cell pct-cell red-3">-37.3%</td>
+          <td class="num-cell pct-cell red-3">-61.2%</td>
+          
+        </tr>
+        <tr data-mom="-36.9"
+            data-yoy="-41.0"
+            data-state="New Jersey"
+            data-current="164"
+            data-prior="260">
+          <td class="state-cell">New Jersey</td>
+          <td class="num-cell">164</td>
+          <td class="num-cell">260</td>
+          <td class="num-cell pct-cell red-3">-36.9%</td>
+          <td class="num-cell pct-cell red-3">-41.0%</td>
+          
+        </tr>
+        <tr data-mom="-34.9"
+            data-yoy="-53.2"
+            data-state="Delaware"
+            data-current="108"
+            data-prior="166">
+          <td class="state-cell">Delaware</td>
+          <td class="num-cell">108</td>
+          <td class="num-cell">166</td>
+          <td class="num-cell pct-cell red-3">-34.9%</td>
+          <td class="num-cell pct-cell red-3">-53.2%</td>
+          
+        </tr>
+        <tr data-mom="-27.4"
+            data-yoy="-28.7"
+            data-state="Indiana"
+            data-current="658"
+            data-prior="906">
+          <td class="state-cell">Indiana</td>
+          <td class="num-cell">658</td>
+          <td class="num-cell">906</td>
+          <td class="num-cell pct-cell red-3">-27.4%</td>
+          <td class="num-cell pct-cell red-3">-28.7%</td>
+          
+        </tr>
+        <tr data-mom="-26.9"
+            data-yoy="-63.9"
+            data-state="Georgia"
+            data-current="293"
+            data-prior="401">
+          <td class="state-cell">Georgia</td>
+          <td class="num-cell">293</td>
+          <td class="num-cell">401</td>
+          <td class="num-cell pct-cell red-3">-26.9%</td>
+          <td class="num-cell pct-cell red-3">-63.9%</td>
+          
+        </tr>
+        <tr data-mom="-25.0"
+            data-yoy="-20.0"
+            data-state="DC"
+            data-current="60"
+            data-prior="80">
+          <td class="state-cell">DC</td>
+          <td class="num-cell">60</td>
+          <td class="num-cell">80</td>
+          <td class="num-cell pct-cell red-3">-25.0%</td>
+          <td class="num-cell pct-cell red-3">-20.0%</td>
+          
+        </tr>
+        <tr data-mom="-24.5"
+            data-yoy="-39.1"
+            data-state="Oklahoma"
+            data-current="1350"
+            data-prior="1788">
+          <td class="state-cell">Oklahoma</td>
+          <td class="num-cell">1,350</td>
+          <td class="num-cell">1,788</td>
+          <td class="num-cell pct-cell red-3">-24.5%</td>
+          <td class="num-cell pct-cell red-3">-39.1%</td>
+          
+        </tr>
+        <tr data-mom="-22.5"
+            data-yoy="-43.9"
+            data-state="New Mexico"
+            data-current="134"
+            data-prior="173">
+          <td class="state-cell">New Mexico</td>
+          <td class="num-cell">134</td>
+          <td class="num-cell">173</td>
+          <td class="num-cell pct-cell red-3">-22.5%</td>
+          <td class="num-cell pct-cell red-3">-43.9%</td>
+          
+        </tr>
+        <tr data-mom="-14.4"
+            data-yoy="-53.5"
+            data-state="Washington"
+            data-current="131"
+            data-prior="153">
+          <td class="state-cell">Washington</td>
+          <td class="num-cell">131</td>
+          <td class="num-cell">153</td>
+          <td class="num-cell pct-cell red-2">-14.4%</td>
+          <td class="num-cell pct-cell red-3">-53.5%</td>
+          
+        </tr>
+        <tr data-mom="-5.5"
+            data-yoy="-26.0"
+            data-state="Florida"
+            data-current="2341"
+            data-prior="2477">
+          <td class="state-cell">Florida</td>
+          <td class="num-cell">2,341</td>
+          <td class="num-cell">2,477</td>
+          <td class="num-cell pct-cell red-1">-5.5%</td>
+          <td class="num-cell pct-cell red-3">-26.0%</td>
+          
+        </tr>
+        <tr data-mom="50.0"
+            data-yoy="-50.0"
+            data-state="Guam"
+            data-current="3"
+            data-prior="2">
+          <td class="state-cell">Guam</td>
+          <td class="num-cell">3</td>
+          <td class="num-cell">2</td>
+          <td class="num-cell pct-cell green-2">+50.0%</td>
+          <td class="num-cell pct-cell red-3">-50.0%</td>
+          
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+<footer>Generated 2026-04-23 11:38 · Quit For Life enrollment tracker</footer>
+
+<script>
+const chartData = [{"state": "Virginia", "sparkline": [], "mom_pct": -51.0}, {"state": "Ohio", "sparkline": [], "mom_pct": -51.0}, {"state": "West Virginia", "sparkline": [], "mom_pct": -50.0}, {"state": "Maine", "sparkline": [], "mom_pct": -46.4}, {"state": "South Carolina", "sparkline": [], "mom_pct": -43.6}, {"state": "Alabama", "sparkline": [], "mom_pct": -42.9}, {"state": "Mississippi", "sparkline": [], "mom_pct": -41.8}, {"state": "Oregon", "sparkline": [], "mom_pct": -41.4}, {"state": "Louisiana", "sparkline": [], "mom_pct": -40.5}, {"state": "Wisconsin", "sparkline": [], "mom_pct": -39.6}, {"state": "North Carolina", "sparkline": [], "mom_pct": -38.4}, {"state": "Alaska", "sparkline": [], "mom_pct": -38.3}, {"state": "Maryland", "sparkline": [], "mom_pct": -37.3}, {"state": "New Jersey", "sparkline": [], "mom_pct": -36.9}, {"state": "Delaware", "sparkline": [], "mom_pct": -34.9}, {"state": "Indiana", "sparkline": [], "mom_pct": -27.4}, {"state": "Georgia", "sparkline": [], "mom_pct": -26.9}, {"state": "DC", "sparkline": [], "mom_pct": -25.0}, {"state": "Oklahoma", "sparkline": [], "mom_pct": -24.5}, {"state": "New Mexico", "sparkline": [], "mom_pct": -22.5}, {"state": "Washington", "sparkline": [], "mom_pct": -14.4}, {"state": "Florida", "sparkline": [], "mom_pct": -5.5}, {"state": "Guam", "sparkline": [], "mom_pct": 50.0}];
+
+function drawSparklines(rows) {
+  rows.forEach((row, i) => {
+    const canvas = document.getElementById(`spark-${i}`);
+    if (!canvas) return;
+    const d = chartData[i];
+    if (!d) return;
+    const vals = d.sparkline.filter(v => v !== null && v !== 0);
+    if (!vals.length) return;
+    const min = Math.min(...vals);
+    const max = Math.max(...vals);
+    const color = (d.mom_pct !== null && d.mom_pct < -2) ? '#ef4444' : '#22c55e';
+    new Chart(canvas, {
+      type: 'line',
+      data: {
+        labels: d.sparkline.map((_, idx) => idx),
+        datasets: [{ data: d.sparkline, borderColor: color, borderWidth: 1.5,
+          pointRadius: 0, tension: 0.3, fill: false }]
+      },
+      options: {
+        animation: false,
+        plugins: { legend: { display: false }, tooltip: { enabled: false } },
+        scales: {
+          x: { display: false },
+          y: { display: false, min: Math.max(0, min * 0.85), max: max * 1.1 }
+        },
+        responsive: false,
+      }
+    });
+  });
+}
+
+let sortCol = 'mom';
+let sortDir = 'asc';
+
+function getVal(row, col) {
+  switch(col) {
+    case 'state': return row.dataset.state;
+    case 'current': return +row.dataset.current;
+    case 'prior': return +row.dataset.prior;
+    case 'mom': return +row.dataset.mom;
+    case 'yoy': return +row.dataset.yoy;
+  }
+  return '';
+}
+
+function sortTable(col) {
+  if (sortCol === col) {
+    sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    sortCol = col;
+    sortDir = 'asc';
+  }
+  const tbody = document.getElementById('table-body');
+  const rows = Array.from(tbody.querySelectorAll('tr:not([style*="display: none"])'));
+  const hidden = Array.from(tbody.querySelectorAll('tr[style*="display: none"]'));
+  rows.sort((a, b) => {
+    const av = getVal(a, col), bv = getVal(b, col);
+    const cmp = typeof av === 'string' ? av.localeCompare(bv) : av - bv;
+    return sortDir === 'asc' ? cmp : -cmp;
+  });
+  [...rows, ...hidden].forEach(r => tbody.appendChild(r));
+  document.querySelectorAll('thead th').forEach(th => {
+    th.classList.remove('sort-asc', 'sort-desc');
+    if (th.dataset.col === col) th.classList.add(sortDir === 'asc' ? 'sort-asc' : 'sort-desc');
+  });
+  drawSparklines(rows);
+  updateCount();
+}
+
+document.getElementById('search').addEventListener('input', e => {
+  const q = e.target.value.toLowerCase();
+  document.querySelectorAll('#table-body tr').forEach(row => {
+    row.style.display = row.dataset.state.toLowerCase().includes(q) ? '' : 'none';
+  });
+  updateCount();
+});
+
+function updateCount() {
+  const visible = document.querySelectorAll('#table-body tr:not([style*="display: none"])').length;
+  document.getElementById('record-count').textContent = `${visible} states`;
+}
+
+document.querySelectorAll('thead th[data-col]').forEach(th => {
+  th.addEventListener('click', () => sortTable(th.dataset.col));
+});
+
+// Overall trend chart
+const trendEl = document.getElementById('overall-trend');
+if (trendEl) {
+  const td = document.getElementById('trend-data');
+  const labels = JSON.parse(td.dataset.labels);
+  const values = JSON.parse(td.dataset.values);
+  new Chart(trendEl, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        borderColor: '#6366f1',
+        backgroundColor: 'rgba(99,102,241,0.08)',
+        borderWidth: 2.5,
+        pointRadius: 3,
+        pointBackgroundColor: '#6366f1',
+        tension: 0.3,
+        fill: true,
+      }]
+    },
+    options: {
+      animation: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: {
+        label: ctx => ' ' + ctx.parsed.y.toLocaleString() + ' enrollments'
+      } } },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { size: 11 } } },
+        y: { grid: { color: '#f3f4f6' }, ticks: { font: { size: 11 }, callback: v => v.toLocaleString() } }
+      },
+      responsive: true,
+      maintainAspectRatio: false,
+    }
+  });
+}
+
+// Init: sort by MoM ascending (biggest dips first)
+sortTable('mom');
+</script>
+</body>
+</html>

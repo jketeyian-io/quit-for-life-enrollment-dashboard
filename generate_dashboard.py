@@ -41,8 +41,9 @@ LOOKER_CLIENT_ID = os.getenv("LOOKER_CLIENT_ID", "")
 LOOKER_CLIENT_SECRET = os.getenv("LOOKER_CLIENT_SECRET", "")
 LOOKER_URL = os.getenv("LOOKER_URL", "")  # dashboard or look URL
 
-# CSV fallback: place any file named enrollments.csv in this directory
-CSV_PATH = Path(__file__).parent / "enrollments.csv"
+# CSV files (downloaded from Looker or captured by download_data.py)
+CSV_PATH           = Path(__file__).parent / "enrollments.csv"
+TRENDS_CSV_PATH    = Path(__file__).parent / "Monthly_Enrollment_Trends.csv"
 
 HAS_API_CREDS = all([LOOKER_BASE_URL, LOOKER_CLIENT_ID, LOOKER_CLIENT_SECRET, LOOKER_URL])
 DEMO_MODE = not HAS_API_CREDS and not CSV_PATH.exists()
@@ -294,6 +295,35 @@ def normalise_rows(raw: list[dict]) -> list[dict]:
 # Metrics
 # ---------------------------------------------------------------------------
 
+def load_monthly_trends() -> list[dict]:
+    """Load overall (all-state) monthly enrollment totals from the trends CSV.
+    Returns [{month, count}, ...] sorted oldest→newest, or [] if file missing."""
+    if not TRENDS_CSV_PATH.exists():
+        return []
+    import csv
+    rows = []
+    with open(TRENDS_CSV_PATH, newline="", encoding="utf-8-sig") as f:
+        for row in csv.DictReader(f):
+            keys = list(row.keys())
+            month_key = next((k for k in keys if "month" in k.lower() or "date" in k.lower()), None)
+            # Count key: must contain count/total but NOT month/date (to avoid matching "Enrollment Month")
+            count_key = next((k for k in keys if ("count" in k.lower() or "total" in k.lower())
+                              and "month" not in k.lower() and "year" not in k.lower()
+                              and "change" not in k.lower() and "last" not in k.lower()), None)
+            if not month_key or not count_key:
+                continue
+            month_raw = row[month_key].strip()
+            m = re.search(r"(\d{4})-(\d{2})", month_raw)
+            if not m:
+                continue
+            try:
+                count = int(float(row[count_key].replace(",", "").lstrip("'")))
+            except (ValueError, TypeError):
+                continue
+            rows.append({"month": f"{m.group(1)}-{m.group(2)}", "count": count})
+    return sorted(rows, key=lambda r: r["month"])
+
+
 def compute_metrics(rows: list[dict]) -> tuple[list[dict], str]:
     data: dict[str, dict[str, int]] = defaultdict(dict)
     all_months = set()
@@ -376,10 +406,36 @@ def pct_display(pct) -> str:
     return f"{sign}{pct:.1f}%"
 
 
-def build_html(metrics: list[dict], current_month: str, demo: bool) -> str:
+def build_html(metrics: list[dict], current_month: str, demo: bool, trends: list[dict] = None) -> str:
     top5 = metrics[:5]
     cur_label = fmt_month(current_month)
     has_sparklines = any(m["sparkline"] for m in metrics)
+    trends = trends or []
+
+    # Overall trend chart block
+    if trends:
+        trend_labels = json.dumps([fmt_month(r["month"]) for r in trends])
+        trend_values = json.dumps([r["count"] for r in trends])
+        total_cur  = trends[-1]["count"]
+        total_prev = trends[-2]["count"] if len(trends) >= 2 else None
+        total_mom  = round((total_cur - total_prev) / total_prev * 100, 1) if total_prev else None
+        total_mom_class = pct_color_class(total_mom)
+        trend_section = f"""
+  <div class="trend-section">
+    <div class="trend-stat">
+      <div class="trend-stat-label">Total Enrollments — {fmt_month(trends[-1]['month'])}</div>
+      <div class="trend-stat-num">{total_cur:,}</div>
+      <div class="trend-stat-mom {total_mom_class}">{pct_display(total_mom)} vs prior month</div>
+    </div>
+    <div class="trend-chart-wrap">
+      <canvas id="overall-trend"></canvas>
+    </div>
+  </div>
+  <script id="trend-data"
+    data-labels='{trend_labels}'
+    data-values='{trend_values}'></script>"""
+    else:
+        trend_section = ""
 
     chart_data = json.dumps([
         {
@@ -594,6 +650,25 @@ def build_html(metrics: list[dict], current_month: str, demo: bool) -> str:
     .green-1 {{ color: #16a34a !important; font-weight: 500; }}
     .green-2 {{ color: #15803d !important; font-weight: 700; }}
 
+    /* ---- Overall trend ---- */
+    .trend-section {{
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 20px 24px;
+      margin-bottom: 28px;
+      display: flex;
+      align-items: center;
+      gap: 32px;
+      box-shadow: 0 1px 3px rgba(0,0,0,.06);
+    }}
+    .trend-stat {{ flex: 0 0 auto; min-width: 160px; }}
+    .trend-stat-label {{ font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #6b7280; margin-bottom: 6px; }}
+    .trend-stat-num {{ font-size: 36px; font-weight: 800; color: #111827; line-height: 1; margin-bottom: 4px; }}
+    .trend-stat-mom {{ font-size: 13px; font-weight: 600; }}
+    .trend-chart-wrap {{ flex: 1; min-width: 0; height: 110px; position: relative; }}
+    .trend-chart-wrap canvas {{ position: absolute; top: 0; left: 0; width: 100% !important; height: 100% !important; }}
+
     footer {{
       text-align: center;
       font-size: 11px;
@@ -613,6 +688,7 @@ def build_html(metrics: list[dict], current_month: str, demo: bool) -> str:
 
 <div class="container">
 
+{trend_section}
   <div class="section-label">States needing attention — biggest month-over-month dips</div>
   <div class="hero-grid">
     {hero_cards_html}
@@ -733,6 +809,42 @@ function updateCount() {{
 document.querySelectorAll('thead th[data-col]').forEach(th => {{
   th.addEventListener('click', () => sortTable(th.dataset.col));
 }});
+
+// Overall trend chart
+const trendEl = document.getElementById('overall-trend');
+if (trendEl) {{
+  const td = document.getElementById('trend-data');
+  const labels = JSON.parse(td.dataset.labels);
+  const values = JSON.parse(td.dataset.values);
+  new Chart(trendEl, {{
+    type: 'line',
+    data: {{
+      labels,
+      datasets: [{{
+        data: values,
+        borderColor: '#6366f1',
+        backgroundColor: 'rgba(99,102,241,0.08)',
+        borderWidth: 2.5,
+        pointRadius: 3,
+        pointBackgroundColor: '#6366f1',
+        tension: 0.3,
+        fill: true,
+      }}]
+    }},
+    options: {{
+      animation: false,
+      plugins: {{ legend: {{ display: false }}, tooltip: {{ callbacks: {{
+        label: ctx => ' ' + ctx.parsed.y.toLocaleString() + ' enrollments'
+      }} }} }},
+      scales: {{
+        x: {{ grid: {{ display: false }}, ticks: {{ font: {{ size: 11 }} }} }},
+        y: {{ grid: {{ color: '#f3f4f6' }}, ticks: {{ font: {{ size: 11 }}, callback: v => v.toLocaleString() }} }}
+      }},
+      responsive: true,
+      maintainAspectRatio: false,
+    }}
+  }});
+}}
 
 // Init: sort by MoM ascending (biggest dips first)
 sortTable('mom');
@@ -863,7 +975,8 @@ def main():
         metrics, current_month = compute_metrics(normalised)
         print(f"  Computed metrics for {len(metrics)} states. Most recent month: {current_month}")
 
-    html = build_html(metrics, current_month, demo=DEMO_MODE)
+    trends = load_monthly_trends()
+    html = build_html(metrics, current_month, demo=DEMO_MODE, trends=trends)
     out_path = Path(__file__).parent / "dashboard.html"
     out_path.write_text(html, encoding="utf-8")
     print(f"\n✅ Dashboard written to: {out_path}")

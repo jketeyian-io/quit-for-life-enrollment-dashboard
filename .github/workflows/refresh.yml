@@ -2,7 +2,7 @@ name: Refresh Enrollment Dashboard
 
 on:
   schedule:
-    - cron: '0 9 2 * *'   # 9am UTC on the 2nd of every month
+    - cron: '0 9 1,15 * *'  # 9am UTC on the 1st and 15th of every month
   workflow_dispatch:        # also lets you trigger it manually from GitHub
 
 jobs:

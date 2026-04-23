@@ -33,7 +33,8 @@ DASHBOARD_URL = (
     "&Program+Enrollment+Date=12+month+ago+for+12+month"
 )
 
-OUT_PATH = Path(__file__).parent / "enrollments.csv"
+OUT_PATH        = Path(__file__).parent / "enrollments.csv"
+TRENDS_OUT_PATH = Path(__file__).parent / "Monthly_Enrollment_Trends.csv"
 
 # These are the column names we expect from the Looker tile response.
 # Adjust if your Looker field names differ.
@@ -109,6 +110,18 @@ def download():
         context = browser.new_context()
         page = context.new_page()
 
+        captured_trends: list = []
+
+        def _is_trends_data(rows):
+            """Total monthly enrollment — has month + count but NO client/state column."""
+            if not rows or not isinstance(rows, list) or not isinstance(rows[0], dict):
+                return False
+            keys = " ".join(rows[0].keys()).lower()
+            has_month = "month" in keys or "date" in keys
+            has_count = "enroll" in keys or "count" in keys
+            has_no_client = "client" not in keys and "state" not in keys
+            return has_month and has_count and has_no_client
+
         # Intercept API responses from the dashboard tile queries
         def on_response(response):
             if "/api/4.0/queries/" not in response.url:
@@ -118,6 +131,9 @@ def download():
                 if _is_enrollment_data(body) and len(body) > len(captured):
                     captured.clear()
                     captured.extend(body)
+                elif _is_trends_data(body) and len(body) > len(captured_trends):
+                    captured_trends.clear()
+                    captured_trends.extend(body)
             except Exception:
                 pass
 
@@ -172,6 +188,18 @@ def download():
         writer.writerows(rows)
 
     print(f"  Saved to {OUT_PATH.name} ({len(rows)} rows).")
+
+    # Save monthly trends if captured
+    if captured_trends:
+        trend_keys = list(captured_trends[0].keys())
+        with open(TRENDS_OUT_PATH, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=[""] + trend_keys, extrasaction="ignore")
+            writer.writeheader()
+            for i, row in enumerate(captured_trends, 1):
+                writer.writerow({"": str(i), **row})
+        print(f"  Saved to {TRENDS_OUT_PATH.name} ({len(captured_trends)} rows).")
+    else:
+        print("  Note: monthly trends tile not captured (dashboard may not have it loaded).")
 
 
 if __name__ == "__main__":
