@@ -1,0 +1,40 @@
+name: Refresh Enrollment Dashboard
+
+on:
+  schedule:
+    - cron: '0 9 2 * *'   # 9am UTC on the 2nd of every month
+  workflow_dispatch:        # also lets you trigger it manually from GitHub
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          playwright install chromium --with-deps
+
+      - name: Download data from Looker
+        env:
+          LOOKER_USERNAME: ${{ secrets.LOOKER_USERNAME }}
+          LOOKER_PASSWORD: ${{ secrets.LOOKER_PASSWORD }}
+        run: python download_data.py
+
+      - name: Generate dashboard
+        run: python generate_dashboard.py
+
+      - name: Deploy to Netlify
+        run: |
+          npx netlify-cli deploy \
+            --prod \
+            --dir . \
+            --auth ${{ secrets.NETLIFY_AUTH_TOKEN }} \
+            --site 4ce568f7-d811-4964-b463-092d5d76fcc9 \
+            --message "Monthly refresh $(date +'%Y-%m')"
